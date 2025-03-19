@@ -1,4 +1,3 @@
-сейчас я дам тебе 2 версии одного и того же скрипта для Roblox, один в loadstring а другой обычный, сделай так, ЧТОБЫ АБСОЮТНО ВСЕ НАСТРАИВАЕМЫЕ ПУНКТЫ В ЭТОМ СКРИПТЕ (РАЗМЕР ТЕКСТА, КЛАВИШИ ДЛЯ ПЕРЕКЛЮЧЕНИЯ HIGHLIGHTS И ТЕКСТА И ОСТАЛЬНЫЕ СВОЙСТВА) отделились от этого скрипта, но с помощью них всё еще можно было настраивать скрипт, то есть, нужно чтобы сначала шли настройки скрипта, а после loadstring, к которому будут применяться эти настройки
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -207,3 +206,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		print("Name GUI toggled. New state: " .. tostring(nameEnabled))
 	end
 end)
+  
+--[[
+	Note: To integrate this script with loadstring or further modifications,
+	you can isolate the configuration section (i.e., key bindings and toggle states)
+	from the main functional code.
+  
+	The toggles here only change the Enabled property of the Highlight and BillboardGui,
+	which makes them invisible without destroying them.
+  
+	Ensure that this script runs in a LocalScript for client-side effects in Roblox.
+]]--
