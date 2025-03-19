@@ -1,0 +1,209 @@
+сейчас я дам тебе 2 версии одного и того же скрипта для Roblox, один в loadstring а другой обычный, сделай так, ЧТОБЫ АБСОЮТНО ВСЕ НАСТРАИВАЕМЫЕ ПУНКТЫ В ЭТОМ СКРИПТЕ (РАЗМЕР ТЕКСТА, КЛАВИШИ ДЛЯ ПЕРЕКЛЮЧЕНИЯ HIGHLIGHTS И ТЕКСТА И ОСТАЛЬНЫЕ СВОЙСТВА) отделились от этого скрипта, но с помощью них всё еще можно было настраивать скрипт, то есть, нужно чтобы сначала шли настройки скрипта, а после loadstring, к которому будут применяться эти настройки
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+
+-- Configuration for toggle keys.
+local HIGHLIGHT_TOGGLE_KEY = Enum.KeyCode.H  -- Toggle highlights
+local NAME_TOGGLE_KEY = Enum.KeyCode.N       -- Toggle player name GUIs
+
+-- Global state for toggles.
+local highlightEnabled = true
+local nameEnabled = true
+
+-- Function to update the highlight state for all existing characters.
+local function updateHighlights()
+	for _, player in ipairs(Players:GetPlayers()) do
+		-- Process non-local players (or include local, depending on requirements)
+		if player.Character then
+			local highlight = player.Character:FindFirstChild("TeamHighlight")
+			if highlight and highlight:IsA("Highlight") then
+				highlight.Enabled = highlightEnabled
+			end
+		end
+	end
+end
+
+-- Function to update the visibility state for all existing name GUIs.
+local function updateNameGuis()
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player.Character then
+			local head = player.Character:FindFirstChild("Head")
+			if head then
+				local billboard = head:FindFirstChild("PlayerInfoGui")
+				if billboard and billboard:IsA("BillboardGui") then
+					billboard.Enabled = nameEnabled
+				end
+			end
+		end
+	end
+end
+
+-- Function to add highlight and BillboardGui (for name and health) to the given character.
+local function addHighlightAndGui(character, player)
+	-- Ensure the character is a valid Model.
+	if not character or not character:IsA("Model") then
+		return
+	end
+
+	-- Remove existing Highlight if any from previous runs.
+	local existingHighlight = character:FindFirstChildWhichIsA("Highlight")
+	if existingHighlight then
+		existingHighlight:Destroy()
+	end
+
+	-- Create and configure the Highlight instance.
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "TeamHighlight"
+	highlight.FillColor = (player.TeamColor and player.TeamColor.Color) or Color3.new(1, 1, 1)
+	highlight.Parent = character
+	-- Apply current toggle state.
+	highlight.Enabled = highlightEnabled
+
+	-- Wait for the character's head to exist to attach a BillboardGui.
+	local head = character:WaitForChild("Head", 5)
+	if not head then
+		warn("No head found for " .. player.Name)
+		return
+	end
+	
+	-- Wait for the Humanoid to exist so that health information is available.
+	-- If it doesn't show up within 5 seconds, abort adding the GUI.
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not humanoid then
+		warn("No humanoid found for " .. player.Name)
+		return
+	end
+
+	-- Remove existing BillboardGui if it exists to avoid duplicates.
+	local existingBillboard = head:FindFirstChild("PlayerInfoGui")
+	if existingBillboard then
+		existingBillboard:Destroy()
+	end
+
+	-- Create a BillboardGui to display the player's DisplayName and health percentage.
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PlayerInfoGui"
+	billboard.Adornee = head
+	billboard.AlwaysOnTop = true
+	billboard.Size = UDim2.new(0, 160, 0, 25)
+	billboard.StudsOffset = Vector3.new(0, 1, 0)
+	billboard.Parent = head
+	-- Apply current toggle state.
+	billboard.Enabled = nameEnabled
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextScaled = false
+	textLabel.TextSize = 15
+	textLabel.TextColor3 = (player.TeamColor and player.TeamColor.Color) or Color3.new(1, 1, 1)
+	textLabel.TextStrokeTransparency = 0.5
+	textLabel.Font = Enum.Font.SourceSansBold
+	textLabel.Parent = billboard
+
+	-- Function to update the text to display the player's DisplayName and current health percentage.
+	local function updatePlayerInfo()
+		-- If textLabel was removed, abort updating.
+		if not textLabel or not textLabel.Parent then
+			return
+		end
+
+		local displayName = player.DisplayName or player.Name
+
+		-- Confirm that the humanoid exists. This should always be true because we waited for it,
+		-- but we check again in case the character resets.
+		local currentHumanoid = character:FindFirstChildOfClass("Humanoid")
+		if currentHumanoid then
+			-- Calculate the health percentage based on current Health and MaxHealth.
+			-- Guard against division by zero.
+			if currentHumanoid.MaxHealth > 0 then
+				local healthPercent = math.floor((currentHumanoid.Health / currentHumanoid.MaxHealth) * 100)
+				textLabel.Text = string.format("%s - Health: %d%%", displayName, healthPercent)
+			else
+				textLabel.Text = string.format("%s - Health: N/A", displayName)
+			end
+		else
+			-- If no humanoid is found, display N/A without the percentage sign.
+			textLabel.Text = string.format("%s - Health: N/A", displayName)
+		end
+	end
+
+	-- Initial update of GUI text.
+	updatePlayerInfo()
+
+	-- Listen for changes in the player's TeamColor so that the highlight and text colors update accordingly.
+	player:GetPropertyChangedSignal("TeamColor"):Connect(function()
+		local newColor = (player.TeamColor and player.TeamColor.Color) or Color3.new(1, 1, 1)
+		highlight.FillColor = newColor
+		textLabel.TextColor3 = newColor
+	end)
+
+	-- Monitor health changes to update the displayed health percentage.
+	humanoid.HealthChanged:Connect(function(newHealth)
+		-- When health reaches zero or below, remove the highlight and GUI.
+		if newHealth <= 0 then
+			if highlight and highlight.Parent then
+				highlight:Destroy()
+			end
+			if billboard and billboard.Parent then
+				billboard:Destroy()
+			end
+		else
+			updatePlayerInfo()
+		end
+	end)
+end
+
+-- Function to handle a character being added for a given player.
+local function onCharacterAdded(character, player)
+	-- Wait for the head so we can attach our GUI elements.
+	character:WaitForChild("Head", 5)
+	addHighlightAndGui(character, player)
+end
+
+-- Process a player (excluding the local player if desired).
+local function processPlayer(player)
+	-- Skip localPlayer if needed; adjust according to requirements.
+	if player == localPlayer then
+		return
+	end
+
+	-- If the player's character already exists, set up the GUI immediately.
+	if player.Character then
+		onCharacterAdded(player.Character, player)
+	end
+
+	-- Listen for new character spawns.
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(character, player)
+	end)
+end
+
+-- Process already connected players.
+for _, player in ipairs(Players:GetPlayers()) do
+	processPlayer(player)
+end
+
+-- Listen for any new players joining.
+Players.PlayerAdded:Connect(function(player)
+	processPlayer(player)
+end)
+
+-- Listen for key input to toggle highlights and name GUIs.
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- Ignore input if the game already processed it.
+	if gameProcessed then return end
+
+	if input.KeyCode == HIGHLIGHT_TOGGLE_KEY then
+		highlightEnabled = not highlightEnabled
+		updateHighlights()
+		print("Highlight toggled. New state: " .. tostring(highlightEnabled))
+	elseif input.KeyCode == NAME_TOGGLE_KEY then
+		nameEnabled = not nameEnabled
+		updateNameGuis()
+		print("Name GUI toggled. New state: " .. tostring(nameEnabled))
+	end
+end)
